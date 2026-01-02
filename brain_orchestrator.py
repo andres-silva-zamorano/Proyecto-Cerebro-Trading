@@ -11,7 +11,8 @@ NEURONAS = [
     "lobulo_percepcion/n_momentum.py",
     "lobulo_percepcion/n_vestibular.py",
     "lobulo_ejecucion/n_ejecutor.py",
-    "lobulo_riesgo/n_homeostasis.py"  # <--- INTEGRACIÓN FINAL
+    "lobulo_riesgo/n_homeostasis.py",
+    "lobulo_riesgo/n_log_hipocampo.py"  # <--- NUEVA NEURONA
 ]
 
 def launch_brain():

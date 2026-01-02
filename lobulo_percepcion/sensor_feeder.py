@@ -1,3 +1,8 @@
+import sys
+import os
+# Añade la carpeta superior al path de Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pandas as pd
 import redis
 import json
@@ -25,7 +30,7 @@ def start_historical_feeder(file_path):
         # Control de velocidad: 
         # 0.01 = 100 velas por segundo (Super-entrenamiento)
         # 1.0  = Velocidad real M1
-        time.sleep(0.5) 
+        time.sleep(0.05) 
 
 if __name__ == "__main__":
     start_historical_feeder('data/Dataset_Con_Regimenes.csv')
