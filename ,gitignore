@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Datos y Modelos (Son muy pesados para GitHub)
+data/*.csv
+models/*.h5
+models/*.pkl
+models/*.pt
+
+# Logs
+*.log

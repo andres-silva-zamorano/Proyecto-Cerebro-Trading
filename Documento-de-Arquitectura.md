@@ -412,3 +412,42 @@ Este documento de 7 capítulos es tu **Plano Genético**. Con él, puedes constr
 
 
 
+### Resumen del Lóbulo de Percepción Completo
+
+Tenemos
+
+1. Un **Feeder** que inyecta 15 meses de memoria histórica.
+2. Un **Tálamo** que clasifica el mundo en 7 regímenes.
+3. Una **Corteza Visual** que entiende el abanico de EMAs.
+4. Un **Sistema Somatosensorial** que siente la energía del momentum.
+5. Un **Sistema Vestibular** que protege contra el ruido y la volatilidad.
+
+
+
+Estructura de archivos
+
+```
+Cerebro-Trading-Modular/
+│
+├── .gitignore              # Para evitar subir archivos .pyc, .h5 pesados o datos sensibles
+├── README.md               # El Documento de Requisitos que creamos
+├── config.py               # La Médula Espinal (Configuración de Redis/MT5)
+├── brain_orchestrator.py   # El Tronco Encefálico (Gestor de procesos)
+├── brain_monitor.py        # NUEVO: La "Pantalla" del cerebro (Visualización)
+│
+├── data/                   # Carpeta para el Dataset_Con_Regimenes.csv
+│   └── Dataset_Con_Regimenes.csv
+│
+├── lobulo_percepcion/      # Fase 1: Corteza Sensorial
+│   ├── sensor_feeder.py    # Cap 1: Ingesta (CSV/MT5)
+│   ├── n_talamo.py         # Cap 2: Regímenes (XGBoost)
+│   ├── n_visual.py         # Cap 3: Estructura Fractal (CNN)
+│   ├── n_momentum.py       # Cap 4: Energía (MLP)
+│   └── n_vestibular.py     # Cap 5: Volatilidad/Ruido (Autoencoder)
+│
+├── lobulo_ejecucion/      # Fase 2: Corteza Prefrontal (Próximamente)
+├── lobulo_riesgo/         # Fase 3: Amígdala (Próximamente)
+│
+└── models/                 # Carpeta para guardar los archivos .h5 o .pkl de las RN
+    └── encoder_ruido.h5
+```

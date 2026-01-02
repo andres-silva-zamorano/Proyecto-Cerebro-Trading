@@ -1,0 +1,113 @@
+=== RESUMEN DE CÓDIGO DEL PROYECTO ===
+Generado el: Proyecto-Cerebro-Trading
+==================================================
+
+
+==================== INICIO ARCHIVO: brain_orchestrator.py ====================
+import subprocess
+import time
+import sys
+
+# Lista de archivos .py que representan nuestras neuronas
+NEURONAS = [
+    "sensor_feeder.py",           # Cap 1: Ingesta
+    "n_percep_talamo.py",         # Cap 2: Régimen
+    "n_percep_visual.py",         # Cap 3: Estructura
+    "n_percep_momentum.py",       # Cap 4: Energía
+    "n_percep_vestibular.py"      # Cap 5: Realidad
+]
+
+def launch_brain():
+    processes = []
+    print("--- Iniciando Cerebro Modular ---")
+    
+    for neurona in NEURONAS:
+        p = subprocess.Popen([sys.executable, neurona])
+        processes.append(p)
+        print(f"Activando neurona: {neurona} (PID: {p.pid})")
+    
+    try:
+        while True:
+            time.sleep(1) # El orquestador mantiene el sistema vivo
+    except KeyboardInterrupt:
+        print("\nApagando cerebro...")
+        for p in processes:
+            p.terminate()
+
+if __name__ == "__main__":
+    launch_brain()
+==================== FIN ARCHIVO: brain_orchestrator.py ====================
+
+
+==================== INICIO ARCHIVO: config.py ====================
+# Configuración central del cerebro
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+
+# Canales de comunicación (Médula Espinal)
+CH_MARKET_DATA = 'market_stream'    # Datos brutos del sensor
+CH_PERCEPTION = 'perception_stream' # Resultados de las neuronas de percepción
+CH_BRAIN_STATE = 'brain_state'      # Estado del Tálamo (Régimen)
+==================== FIN ARCHIVO: config.py ====================
+
+
+==================== INICIO ARCHIVO: lobulo_percepcion\n_talamo.py ====================
+import pandas as pd
+import redis
+import json
+import time
+from config import REDIS_HOST, REDIS_PORT, CH_MARKET_DATA
+
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+
+def feed_csv(file_path):
+    df = pd.read_csv(file_path)
+    print(f"Cargando historial: {len(df)} registros.")
+    
+    for index, row in df.iterrows():
+        # Convertimos la fila a un diccionario (Pulso sensorial)
+        payload = row.to_dict()
+        
+        # Publicamos en la "Médula Espinal"
+        r.publish(CH_MARKET_DATA, json.dumps(payload))
+        
+        # Simulamos un tick de mercado (ajustar velocidad aquí)
+        time.sleep(0.1) 
+
+if __name__ == "__main__":
+    feed_csv('Dataset_Con_Regimenes.csv')
+==================== FIN ARCHIVO: lobulo_percepcion\n_talamo.py ====================
+
+
+==================== INICIO ARCHIVO: lobulo_percepcion\n_visual.py ====================
+
+==================== FIN ARCHIVO: lobulo_percepcion\n_visual.py ====================
+
+
+==================== INICIO ARCHIVO: lobulo_percepcion\sensor_feeder.py ====================
+import pandas as pd
+import redis
+import json
+import time
+from config import REDIS_HOST, REDIS_PORT, CH_MARKET_DATA
+
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+
+def feed_csv(file_path):
+    df = pd.read_csv(file_path)
+    print(f"Cargando historial: {len(df)} registros.")
+    
+    for index, row in df.iterrows():
+        # Convertimos la fila a un diccionario (Pulso sensorial)
+        payload = row.to_dict()
+        
+        # Publicamos en la "Médula Espinal"
+        r.publish(CH_MARKET_DATA, json.dumps(payload))
+        
+        # Simulamos un tick de mercado (ajustar velocidad aquí)
+        time.sleep(0.1) 
+
+if __name__ == "__main__":
+    feed_csv('Dataset_Con_Regimenes.csv')
+==================== FIN ARCHIVO: lobulo_percepcion\sensor_feeder.py ====================
+
