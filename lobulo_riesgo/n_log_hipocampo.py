@@ -2,19 +2,22 @@ import redis
 import json
 import datetime
 import os
-from config import REDIS_HOST, REDIS_PORT, CH_VISUAL, CH_MARKET_DATA
+import sys
+
+sys.path.append(os.getcwd())
+from config import REDIS_HOST, REDIS_PORT, CH_VISUAL, CH_DECISION, CH_HOMEOSTASIS
 
 def main():
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
     pubsub = r.pubsub()
-    # Escuchamos todo lo relevante para la bitácora
-    pubsub.subscribe('brain_decision', 'homeostasis_status', CH_VISUAL)
+    # Escuchamos los canales clave para la bitácora
+    pubsub.subscribe(CH_DECISION, CH_HOMEOSTASIS, CH_VISUAL)
 
     log_dir = "logs_trading"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    print("--- 🧠 Hipocampo Activo: Registrando Memoria del Cerebro ---")
+    print("--- 🧠 Hipocampo v3: Registrando Memoria Democrática ---")
 
     for message in pubsub.listen():
         if message['type'] == 'message':
@@ -25,26 +28,20 @@ def main():
             log_file = f"{log_dir}/bitacora_{datetime.datetime.now().strftime('%Y%m%d')}.txt"
             
             with open(log_file, "a", encoding="utf-8") as f:
-                if canal == 'brain_decision':
-                    msg = f"[{ahora}] 🚀 ENTRADA: {payload['action']} | Precio: {payload['price_at_entry']} | Confianza: {payload['confidence']:.2%}\n"
+                if canal == CH_DECISION:
+                    # Usamos .get() para evitar errores si falta una llave
+                    consenso = payload.get('consenso', 0.0)
+                    msg = f"[{ahora}] 🚀 ENTRADA: {payload['action']} | Precio: {payload['price_at_entry']} | Consenso: {consenso:.2f} | Razón: {payload.get('reason')}\n"
                     f.write(msg)
                     print(msg.strip())
 
-                elif canal == 'homeostasis_status':
-                    # Solo logueamos si hubo un cierre (cuando pasan de 1 a 0 órdenes)
-                    # O podrías loguear el estado del PnL cada X tiempo.
-                    if payload['open_orders'] == 0:
-                        msg = f"[{ahora}] 🏁 CIERRE DE CLÚSTER: PnL Flotante: {payload['floating_pnl']} | PnL Día: {payload['daily_pnl']}\n"
-                        # Nota: El motivo lo imprime la homeostasis en consola, 
-                        # pero este log registra el resultado final.
+                elif canal == CH_HOMEOSTASIS:
+                    if payload.get('open_orders') == 0:
+                        pnl_f = payload.get('floating_pnl', 0.0)
+                        pnl_d = payload.get('daily_pnl', 0.0)
+                        msg = f"[{ahora}] 🏁 CIERRE: PnL Flotante: {pnl_f} | PnL Día: {pnl_d}\n"
                         f.write(msg)
                         f.write("-" * 50 + "\n")
-
-                elif canal == CH_VISUAL:
-                    # Loguear solo si la confianza es muy alta o muy baja (eventos de interés)
-                    if payload['confidence'] > 0.90 or payload['confidence'] < 0.30:
-                        msg = f"[{ahora}] 👁️ ALERTA IA: {payload['fan_order']} | Conf: {payload['confidence']:.2%}\n"
-                        f.write(msg)
 
 if __name__ == "__main__":
     main()

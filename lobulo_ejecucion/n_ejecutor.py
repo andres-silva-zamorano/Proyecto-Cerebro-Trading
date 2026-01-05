@@ -1,127 +1,119 @@
 import redis
 import json
-import sys
 import os
+import sys
+from rich.console import Console
 
-# Asegurar que el sistema reconozca la raíz para importar config
+# Asegurar que reconozca la raíz para importar config
 sys.path.append(os.getcwd())
-from config import (
-    REDIS_HOST, REDIS_PORT, 
-    CH_BRAIN_STATE, CH_VISUAL, CH_MOMENTUM, CH_VESTIBULAR, CH_DECISION,
-    CH_BLOCK  # Usamos el canal de bloqueo definido en config
-)
+from config import *
 
-# --- MEMORIA DE REFRACTARIEDAD ---
-ULTIMO_TIMESTAMP_ORDEN = ""
+console = Console()
+
+class EjecutorMaestro:
+    def __init__(self):
+        self.r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+        self.matriz_reputacion = self.cargar_pesos()
+        
+        # MEMORIA SENSORIAL Y DE CLÚSTER
+        self.votos_actuales = {}           
+        self.expertos_en_el_cluster = set() 
+        
+        self.guardar_matriz()
+        console.print("[bold green]🏛️ Lóbulo Prefrontal:[/bold green] Gestión de Cúmulos y Reputación Activa.")
+
+    def cargar_pesos(self):
+        if os.path.exists(PATH_MATRIZ_REPUTACION):
+            try:
+                with open(PATH_MATRIZ_REPUTACION, 'r') as f:
+                    return json.load(f)
+            except: pass
+        # Crea estructura para los 7 regímenes si no existe
+        return {str(i): {} for i in range(7)}
+
+    def guardar_matriz(self):
+        os.makedirs(os.path.dirname(PATH_MATRIZ_REPUTACION), exist_ok=True)
+        with open(PATH_MATRIZ_REPUTACION, 'w') as f:
+            json.dump(self.matriz_reputacion, f, indent=4)
+
+    def aprender_y_limpiar(self, reporte):
+        """Ajusta pesos según el resultado del cluster y limpia la mesa."""
+        reg = str(reporte['regimen'])
+        win = reporte['win']
+        pnl = reporte.get('final_pnl', 0)
+        
+        console.print(f"\n[bold magenta]🧠 APRENDIZAJE:[/bold magenta] Cluster en Reg {reg} | ¿Ganó?: {win} | PnL: {pnl:.2f}")
+
+        for exp_id in self.expertos_en_el_cluster:
+            if exp_id not in self.matriz_reputacion[reg]:
+                self.matriz_reputacion[reg][exp_id] = 1.0
+            
+            # Recompensa/Castigo ponderado
+            cambio = 0.10 if win else -0.25
+            nuevo_peso = self.matriz_reputacion[reg][exp_id] + cambio
+            self.matriz_reputacion[reg][exp_id] = round(max(0.1, min(5.0, nuevo_peso)), 2)
+            
+            color = "green" if cambio > 0 else "red"
+            console.print(f"   [dim]→ {exp_id:20}:[/dim] [{color}]{self.matriz_reputacion[reg][exp_id]}[/{color}]")
+
+        self.guardar_matriz()
+        self.expertos_en_el_cluster.clear() # Reset escuadrón
+        self.votos_actuales.clear()        # Limpia votos viejos
+        console.print("[italic gray]🧹 Mesa limpia. Esperando nuevos votos.[/italic gray]")
+
+    def decidir(self, regime_id, price, timestamp):
+        reg = str(regime_id)
+        
+        # El canal de bloqueo impide abrir órdenes si hubo un cierre reciente o SL Diario
+        if self.r.exists(f"{CH_BLOCK}_active"):
+            return
+
+        voto_final = 0.0
+        participantes_del_pulso = []
+
+        # Suma Sináptica Ponderada por Reputación del Régimen
+        for exp_id, voto in self.votos_actuales.items():
+            if voto != 0:
+                peso = self.matriz_reputacion.get(reg, {}).get(exp_id, 1.0)
+                voto_final += (voto * peso)
+                participantes_del_pulso.append(exp_id)
+
+        # Umbral de disparo (Potencial de Acción)
+        if abs(voto_final) >= 0.7:
+            accion = "BUY" if voto_final > 0 else "SELL"
+            
+            # Registramos quiénes causaron este movimiento para el aprendizaje
+            self.expertos_en_el_cluster.update(participantes_del_pulso)
+
+            payload = {
+                "action": accion,
+                "price_at_entry": price,
+                "regime": regime_id,
+                "consenso": round(voto_final, 2),
+                "Timestamp": timestamp,
+                "reason": f"Consenso Ponderado: {voto_final:.2f}"
+            }
+            self.r.publish(CH_DECISION, json.dumps(payload))
+            console.print(f"[bold cyan]🚀 DISPARO:[/bold cyan] {accion} | Consenso: {voto_final:.2f} | Reg: {reg}")
 
 def main():
-    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-    pubsub = r.pubsub()
-    
-    # Suscripción a la médula espinal sensorial
-    pubsub.subscribe(CH_BRAIN_STATE, CH_VISUAL, CH_MOMENTUM, CH_VESTIBULAR)
+    e = EjecutorMaestro()
+    pubsub = e.r.pubsub()
+    pubsub.subscribe(CH_VOTES, CH_RESULTS, CH_BRAIN_STATE)
 
-    print("--- 🚀 Ejecutor Maestro Alpha (Versión Blindada) ---")
-    print(f"📡 Escuchando canales y respetando bloqueo en canal: {CH_BLOCK}")
-
-    percepciones = {
-        "talamo": None,
-        "visual": None,
-        "momentum": None,
-        "vestibular": None
-    }
+    console.print("--- [bold white]🏛️ Ejecutor Maestro: Comandante de Cúmulos[/bold white] ---")
 
     for message in pubsub.listen():
         if message['type'] == 'message':
             canal = message['channel'].decode('utf-8')
-            payload = json.loads(message['data'])
-            
-            # Actualizar memoria sensorial
-            if canal == CH_BRAIN_STATE: percepciones["talamo"] = payload
-            elif canal == CH_VISUAL: percepciones["visual"] = payload
-            elif canal == CH_MOMENTUM: percepciones["momentum"] = payload
-            elif canal == CH_VESTIBULAR: percepciones["vestibular"] = payload
+            data = json.loads(message['data'])
 
-            # Solo decidir si tenemos el cuadro completo
-            if all(percepciones.values()):
-                decidir_accion(percepciones, r)
-
-def decidir_accion(p, r):
-    global ULTIMO_TIMESTAMP_ORDEN
-    
-    # 0. Sincronía de tiempo
-    timestamp_actual = p["talamo"]["Timestamp"]
-    
-    # --- FILTRO 1: BLOQUEO POR HOMEÓSTASIS ---
-    # Si la Homeostasis activó el flag de bloqueo en Redis, no operamos.
-    if r.get(f"{CH_BLOCK}_active"):
-        return
-
-    # --- FILTRO 2: REFRACTARIEDAD MINUTAL ---
-    if timestamp_actual == ULTIMO_TIMESTAMP_ORDEN:
-        return
-
-    # 1. Extracción de percepciones
-    regime = p["talamo"]["regime_id"]
-    energia = p["momentum"]["energy_score"]
-    ruido = p["vestibular"].get("noise_level", 0.0)
-    confianza_ia = p["visual"].get("confidence", 0.0)
-    visual_state = p["visual"].get("fan_order", "neutral")
-
-    # --- CONFIGURACIÓN DE UMBRALES ---
-    UMBRAL_ENERGIA_MIN = 0.40  
-    UMBRAL_RUIDO_MAX = 0.0015  
-    
-    signal = "WAIT"
-    motivo_bloqueo = ""
-
-    # --- LÓGICA DE FILTRADO ---
-    
-    # A. Filtro de Ruido
-    if ruido > UMBRAL_RUIDO_MAX:
-        motivo_bloqueo = f"❌ RUIDO EXCESIVO: {ruido:.6f}"
-    
-    # B. Filtro de Régimen (Tálamo)
-    elif regime not in [5, 6]:
-        motivo_bloqueo = f"❌ TÁLAMO NEUTRAL ({regime})"
-    
-    # C. Filtro de Energía (Momentum)
-    elif energia < UMBRAL_ENERGIA_MIN:
-        motivo_bloqueo = f"❌ ENERGÍA INSUFICIENTE: {energia:.2f}"
-        
-    # D. FILTRO DE SEGURIDAD IA (Evitar el estado neutral que causó pérdidas)
-    elif visual_state == "neutral":
-        motivo_bloqueo = "❌ IA EN ESTADO NEUTRAL (Sin dirección)"
-
-    # --- DETERMINACIÓN DE SEÑAL ---
-    if motivo_bloqueo == "":
-        # Solo disparamos si hay consenso entre Tálamo e IA Visual
-        if regime == 5 and visual_state == "bullish_alpha":
-            signal = "BUY"
-        elif regime == 6 and visual_state == "bearish_alpha":
-            signal = "SELL"
-        else:
-            motivo_bloqueo = f"❌ SIN CONSENSO (Reg:{regime} | IA:{visual_state})"
-
-    # --- DISPARO DE SEÑAL ---
-    if signal != "WAIT":
-        ULTIMO_TIMESTAMP_ORDEN = timestamp_actual
-        
-        decision_payload = {
-            "Timestamp": timestamp_actual,
-            "action": signal,
-            "price_at_entry": p["talamo"].get('Close_Price', 0),
-            "reason": f"Reg:{regime} | Vis:{visual_state} | En:{energia:.2f}",
-            "confidence": confianza_ia
-        }
-        
-        r.publish(CH_DECISION, json.dumps(decision_payload))
-        print(f"🚀 [ORDEN DISPARADA]: {signal} en {timestamp_actual} | Precio: {decision_payload['price_at_entry']} | Conf: {confianza_ia:.2%}")
-    else:
-        # Log de diagnóstico cada 5 minutos para ver que el bot sigue vivo
-        minuto = int(timestamp_actual.split(":")[-1])
-        if minuto % 5 == 0:
-             print(f"DEBUG [{timestamp_actual}]: {motivo_bloqueo}")
+            if canal == CH_VOTES:
+                e.votos_actuales[data['experto_id']] = data['voto']
+            elif canal == CH_RESULTS:
+                e.aprender_y_limpiar(data)
+            elif canal == CH_BRAIN_STATE:
+                e.decidir(data['regime_id'], data['Close_Price'], data['Timestamp'])
 
 if __name__ == "__main__":
     main()

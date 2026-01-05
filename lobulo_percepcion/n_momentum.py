@@ -1,63 +1,64 @@
 import redis
 import json
-from config import REDIS_HOST, REDIS_PORT, CH_MARKET_DATA
+import os
+import sys
+
+sys.path.append(os.getcwd())
+from config import REDIS_HOST, REDIS_PORT, CH_MARKET_DATA, CH_VOTES
 
 def main():
-    # Conexión a la Médula Espinal
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
     pubsub = r.pubsub()
     pubsub.subscribe(CH_MARKET_DATA)
 
-    print("--- Neurona Somatosensorial: Sintiendo Energía de Momentum ---")
+    # Identificador único para el sistema de reputación
+    # Si creas otro archivo, cámbiale este ID a "momentum_v2"
+    EXPERTO_ID = "momentum_v1"
+
+    print(f"--- ⚡ Experto Momentum Activo: {EXPERTO_ID} ---")
+
+    # Memoria simple para detectar dirección
+    precio_anterior = None
 
     for message in pubsub.listen():
         if message['type'] == 'message':
             data = json.loads(message['data'])
             
-            # 1. Extraer sensores de fuerza del dataset
-            rsi = data.get('RSI_Val', 50)
-            rsi_vel = data.get('RSI_Velocidad', 0)
+            precio_actual = data.get('Close_Price', 0)
             adx = data.get('ADX_Val', 0)
-            adx_diff = data.get('ADX_Diff', 0)
+            rsi = data.get('RSI_Val', 50)
             
-            # 2. Lógica de "Excitación Neuronal" (Analogía del esfuerzo muscular)
-            # Si el ADX sube y el RSI tiene velocidad, hay "Ignición"
-            hambre_de_movimiento = 0.0
+            # 1. Lógica de Dirección (¿Hacia dónde va la fuerza?)
+            voto = 0
+            confianza = 0.0
             
-            # Umbral de ADX: > 25 indica tendencia iniciada
-            if adx > 25:
-                hambre_de_movimiento += 0.4
+            if precio_anterior is not None:
+                # Si hay tendencia fuerte (ADX > 25)
+                if adx > 25:
+                    if precio_actual > precio_anterior and rsi > 50:
+                        voto = 1  # Voto COMPRA
+                        confianza = adx / 100 # La confianza escala con el ADX
+                    elif precio_actual < precio_anterior and rsi < 50:
+                        voto = -1 # Voto VENTA
+                        confianza = adx / 100
                 
-            # Si la aceleración (ADX_Diff) es positiva, sumamos carga eléctrica
-            if adx_diff > 0:
-                hambre_de_movimiento += 0.3
-                
-            # Si el RSI se mueve rápido a favor de la tendencia (RSI_Velocidad)
-            if abs(rsi_vel) > 5:
-                hambre_de_movimiento += 0.3
-
-            # 3. Detectar "Fatiga" (Divergencia sensorial)
-            # Si el precio sube pero la velocidad del RSI es negativa, el músculo falla
-            está_cansado = False
-            if (rsi > 70 and rsi_vel < 0) or (rsi < 30 and rsi_vel > 0):
-                está_cansado = True
-                hambre_de_movimiento *= 0.5 # Inhibimos el impulso por cansancio
-
-            # 4. Publicar la percepción de energía
-            momentum_payload = {
-                "energy_score": round(hambre_de_movimiento, 2),
-                "is_exhausted": está_cansado,
-                "adx_intensity": adx,
-                "action_potential": hambre_de_movimiento
+            # 2. Contrato de Comunicación de Expertos
+            voto_payload = {
+                "experto_id": EXPERTO_ID,
+                "voto": voto,
+                "confianza": round(confianza, 2),
+                "Timestamp": data.get('Timestamp')
             }
             
-            r.publish('momentum_perception', json.dumps(momentum_payload))
+            # Publicar voto en el canal democrático
+            r.publish(CH_VOTES, json.dumps(voto_payload))
             
-            # Feedback visual para el usuario
-            status = "🔥 IGNICIÓN" if hambre_de_movimiento > 0.7 else "☁️ CALMA"
-            if está_cansado: status = "💤 FATIGA"
+            # Actualizar memoria
+            precio_anterior = precio_actual
             
-            print(f"Momentum: Score {hambre_de_movimiento:.2f} | {status} (ADX: {adx:.1f})")
+            if voto != 0:
+                dir_label = "BUY" if voto == 1 else "SELL"
+                print(f"🗳️ {EXPERTO_ID} votó {dir_label} | Conf: {confianza:.2f}")
 
 if __name__ == "__main__":
     main()

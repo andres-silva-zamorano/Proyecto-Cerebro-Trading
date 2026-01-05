@@ -412,19 +412,7 @@ Este documento de 7 capítulos es tu **Plano Genético**. Con él, puedes constr
 
 
 
-### Resumen del Lóbulo de Percepción Completo
-
-Tenemos
-
-1. Un **Feeder** que inyecta 15 meses de memoria histórica.
-2. Un **Tálamo** que clasifica el mundo en 7 regímenes.
-3. Una **Corteza Visual** que entiende el abanico de EMAs.
-4. Un **Sistema Somatosensorial** que siente la energía del momentum.
-5. Un **Sistema Vestibular** que protege contra el ruido y la volatilidad.
-
-
-
-Estructura de archivos
+Plaintext
 
 ```
 Cerebro-Trading-Modular/
@@ -433,7 +421,6 @@ Cerebro-Trading-Modular/
 ├── README.md               # El Documento de Requisitos que creamos
 ├── config.py               # La Médula Espinal (Configuración de Redis/MT5)
 ├── brain_orchestrator.py   # El Tronco Encefálico (Gestor de procesos)
-├── brain_monitor.py        # NUEVO: La "Pantalla" del cerebro (Visualización)
 │
 ├── data/                   # Carpeta para el Dataset_Con_Regimenes.csv
 │   └── Dataset_Con_Regimenes.csv
