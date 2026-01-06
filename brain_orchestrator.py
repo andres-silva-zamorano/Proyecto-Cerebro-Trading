@@ -2,9 +2,19 @@ import subprocess
 import threading
 import sys
 import os
+import datetime
 from colorama import Fore, Style, init
 
 init(autoreset=True)
+
+# Crear carpeta de logs si no existe
+LOG_DIR = "logs_sistema"
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+# Nombre del archivo de log para esta sesion
+session_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+MASTER_LOG_FILE = os.path.join(LOG_DIR, f"log_maestro_{session_id}.txt")
 
 COLORES = {
     "sensor_feeder": Fore.WHITE,  
@@ -17,17 +27,30 @@ COLORES = {
     "n_guardian_vestibular": Fore.RED,      
 }
 
+def guardar_en_log(mensaje):
+    """Escribe el mensaje en el archivo de log maestro."""
+    with open(MASTER_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(mensaje + "\n")
+
 def capturar_flujo(proceso, nombre):
-    # IMPORTANTE: Usamos errors='replace' para que no muera el hilo si hay un caracter raro
+    """Lee la salida de cada .py, la colorea y la guarda en disco."""
     for linea in iter(proceso.stdout.readline, b''):
         try:
             texto = linea.decode('utf-8', errors='replace').strip()
+            if not texto: continue
+            
             color = COLORES.get(nombre, Fore.WHITE)
-            if "ESTABLE" in texto and "sensor" in nombre:
-                continue
-            print(f"{color}[{nombre.upper()}] {texto}")
+            ts_real = datetime.datetime.now().strftime("%H:%M:%S")
+            mensaje_formateado = f"[{ts_real}] [{nombre.upper()}] {texto}"
+            
+            # 1. Mostrar en pantalla
+            print(f"{color}{mensaje_formateado}")
+            
+            # 2. Guardar en Caja Negra
+            guardar_en_log(mensaje_formateado)
+            
         except Exception:
-            pass # Si falla el print, seguimos adelante
+            pass
 
 def lanzar_cerebro():
     scripts = [
@@ -38,12 +61,13 @@ def lanzar_cerebro():
         "lobulo_percepcion/n_visual.py",
         "lobulo_riesgo/n_homeostasis.py",
         "lobulo_riesgo/n_guardian_vestibular.py",
-        "lobulo_ejecucion/n_ejecutor.py"
+        "lobulo_ejecucion/n_ejecutor.py",
+        "lobulo_riesgo/n_log_hipocampo.py" # Añadimos el hipocampo a la lista
     ]
 
-    print(f"{Fore.GREEN}--- Iniciando Organismo Digital ---")
+    print(f"{Fore.GREEN}--- 🧠 Iniciando Organismo Digital con Caja Negra Activa ---")
+    print(f"{Fore.YELLOW} Archivo de log: {MASTER_LOG_FILE}")
     
-    # Forzar UTF-8 en las variables de entorno para los hijos
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONPATH"] = os.getcwd()
@@ -54,13 +78,12 @@ def lanzar_cerebro():
         nombre = os.path.basename(s).replace('.py', '')
         
         try:
-            # Usamos shell=True en Windows para mejorar compatibilidad de pipes
             proc = subprocess.Popen(
                 [sys.executable, script_path], 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.STDOUT,
                 env=env,
-                text=False # Manejamos los bytes manualmente para evitar UnicodeError
+                text=False 
             )
             t = threading.Thread(target=capturar_flujo, args=(proc, nombre), daemon=True)
             t.start()
@@ -72,6 +95,7 @@ def lanzar_cerebro():
         for p in procesos:
             p.wait()
     except KeyboardInterrupt:
+        print(f"\n{Fore.RED}🛑 Apagando organismo...")
         for p in procesos:
             p.terminate()
 
