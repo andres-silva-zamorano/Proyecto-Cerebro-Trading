@@ -20,25 +20,36 @@ class EjecutorMaestro:
     def decidir(self, regime_id, price, timestamp):
         reg = str(regime_id)
         voto_final = 0.0
+        # El guardián ahora es un multiplicador, no suma votos
+        multiplicador_seguridad = 1.0 
+
         for exp_id, voto in self.votos_actuales.items():
+            # El Guardián Vestibular no suma puntos, solo reduce el consenso si hay ruido
+            if exp_id == "guardian_vestibular_v1":
+                if voto == 0: multiplicador_seguridad = 0.1 # Bloqueo por ruido
+                continue 
+            
+            # Solo sumamos votos de expertos reales (IA, Momentum, etc.)
             peso = self.matriz_reputacion.get(reg, {}).get(exp_id, 1.0)
-            if exp_id == "guardian_vestibular_v1" and voto == 0: voto_final *= 0.1
-            else: voto_final += (voto * peso)
+            voto_final += (voto * peso)
+
+        # Aplicamos el filtro de seguridad
+        consenso_final = voto_final * multiplicador_seguridad
 
         self.r.publish(CH_BRAIN_STATE, json.dumps({
             "Timestamp": timestamp, "regime_id": regime_id,
-            "Close_Price": price, "consenso_actual": round(voto_final, 2)
+            "Close_Price": price, "consenso_actual": round(consenso_final, 2)
         }))
 
-        # PARAMETRO OPTUNA: 0.7535
-        if not self.r.exists(f"{CH_BLOCK}_active") and abs(voto_final) >= 0.75:
-            accion = "BUY" if voto_final > 0 else "SELL"
+        # Umbral de Optuna: 0.75
+        if not self.r.exists(f"{CH_BLOCK}_active") and abs(consenso_final) >= 0.75:
+            accion = "BUY" if consenso_final > 0 else "SELL"
             payload = {
                 "action": accion, "price_at_entry": price, "regime": regime_id,
-                "consenso": round(voto_final, 2), "Timestamp": timestamp
+                "consenso": round(consenso_final, 2), "Timestamp": timestamp
             }
             self.r.publish(CH_DECISION, json.dumps(payload))
-            console.print(f"[bold cyan]🚀 DISPARO OPTIMIZADO:[/bold cyan] {accion} | Cons: {voto_final:.2f}")
+            console.print(f"[bold cyan]🚀 DISPARO VALIDADO:[/bold cyan] {accion} | Cons: {consenso_final:.2f}")
 
 def main():
     e = EjecutorMaestro()
