@@ -13,39 +13,39 @@ console = Console()
 class HomeostasisBTC:
     def __init__(self):
         """
-        Lóbulo de Riesgo (Amígdala) v5.8.3.
-        Misión: Vigilancia de PnL y disparo de liquidación por metas USD o Trailing Stop.
-        Esta versión es pasiva: no abre órdenes, solo vigila y ordena el cierre.
+        Lóbulo de Supervivencia v5.8.4 (Amígdala Digital).
+        Misión: Vigilancia financiera del clúster de ráfagas fractales.
+        Gestiona el PnL colectivo de hasta 10 órdenes sincronizadas con MetaTrader 5.
         """
         try:
             # Conexión a la Médula Espinal (Redis)
             self.r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
             self.pubsub = self.r.pubsub()
             
-            # Suscripción a canales críticos:
-            # CH_MARKET_DATA: Para el cálculo de PnL flotante en cada tick de precio.
-            # CH_RESULTS: Para recibir la confirmación FÍSICA de apertura/cierre desde MT5.
+            # Suscripción integral:
+            # CH_MARKET_DATA: Para el cálculo de PnL flotante agregado en tiempo real.
+            # CH_RESULTS: Confirmación física de ejecuciones y cierres desde el broker.
             self.pubsub.subscribe(CH_MARKET_DATA, CH_RESULTS)
             
-            # Memoria operativa del organismo
+            # Memoria operativa del cúmulo (Cluster Memory)
             self.ordenes_activas = []
             self.pnl_diario_realizado = 0.0
-            self.max_pnl_flotante = 0.0  # Marca de agua para el Trailing Stop (High-Water Mark)
+            self.max_pnl_flotante = 0.0  # Marca de agua (High-Water Mark)
             
-            # --- PARÁMETROS MAESTROS ALPHA (BTCUSD) ---
-            self.tp_optimo = 236.11      # Objetivo de ganancia en USD
-            self.trail_pct = 0.7979      # Protección del 79.79% del profit máximo
-            self.trail_trigger = 100.0   # Activa trailing tras ganar al menos $100 USD
+            # --- PARÁMETROS MAESTROS ALPHA v3.9 (Optimizados para BTCUSD) ---
+            self.tp_optimo = 236.11      # Take Profit objetivo para el clúster total ($ USD)
+            self.trail_pct = 0.7979      # Protege el 79.79% del beneficio máximo alcanzado
+            self.trail_trigger = 100.0   # Activa la lógica de trailing tras superar los $100 USD
             
-            console.print(f"[bold red]🛡️ Homeostasis v5.8.3: Modo Supervivencia ACTIVO[/bold red]")
-            console.print(f"[dim]Configuración: TP: ${self.tp_optimo} | Trail: {self.trail_pct*100:.1f}%[/dim]")
+            console.print(f"[bold red]🛡️ Homeostasis v5.8.4: Vigilancia de Ráfagas ACTIVA[/bold red]")
+            console.print(f"[dim]Límite Cluster: {MAX_ORDENES_CUMULO} | TP Maestro: ${self.tp_optimo}[/dim]")
         except Exception as e:
             console.print(f"[bold red]❌ Error de conexión en Homeostasis:[/bold red] {e}")
             sys.exit(1)
 
     def publicar_estado(self, pnl_f=0.0):
         """
-        Informa al bus de datos el estado financiero actual para el Monitor Alpha.
+        Actualiza el Monitor Alpha v3.9.2 con la salud financiera del organismo.
         """
         status_payload = {
             "open_orders": len(self.ordenes_activas),
@@ -56,7 +56,7 @@ class HomeostasisBTC:
 
     def procesar(self):
         """
-        Bucle de procesamiento síncrono.
+        Bucle principal de vigilancia síncrona.
         """
         for message in self.pubsub.listen():
             if message['type'] != 'message':
@@ -65,55 +65,55 @@ class HomeostasisBTC:
             canal = message['channel'].decode('utf-8')
             data = json.loads(message['data'])
 
-            # --- 1. SEGUIMIENTO DE RIESGO (Ticks de Mercado) ---
+            # --- 1. SEGUIMIENTO DE RIESGO DEL CLÚSTER (Ticks de Mercado) ---
             if canal == CH_MARKET_DATA:
                 if not self.ordenes_activas:
-                    # Si no hay guerra, mantenemos el monitor en calma
                     self.publicar_estado(0.0)
                     continue
 
                 precio_actual = data.get('Close_Price', 0)
-                pnl_f = 0.0
+                pnl_f_cluster = 0.0
                 
-                # Cálculo de PnL monetario real (Precio * Lote 0.01)
+                # Calculamos el PnL sumado de todas las posiciones de la ráfaga
                 for o in self.ordenes_activas:
+                    # Diferencial de precio x volumen (lotes 0.01 estándar)
                     diff = (precio_actual - o['entrada']) if o['tipo'] == 'BUY' else (o['entrada'] - precio_actual)
-                    pnl_f += diff * o['volumen']
+                    pnl_f_cluster += diff * o['volumen']
                 
-                # Actualizar marca de agua para el Trailing Stop
-                if pnl_f > self.max_pnl_flotante:
-                    self.max_pnl_flotante = pnl_f
+                # Actualizar High-Water Mark para el Trailing Stop del grupo
+                if pnl_f_cluster > self.max_pnl_flotante:
+                    self.max_pnl_flotante = pnl_f_cluster
                 
-                # Evaluación de Gatillos de Salida de Supervivencia
+                # Evaluación de Gatillos de Liquidación de Emergencia
                 lanzar_cierre = False
                 motivo = ""
 
-                # A. Take Profit Maestro
-                if pnl_f >= self.tp_optimo:
+                # A. Take Profit Global del Cúmulo
+                if pnl_f_cluster >= self.tp_optimo:
                     lanzar_cierre = True
-                    motivo = "OBJETIVO_GANANCIA_LOGRADO"
+                    motivo = "CLUSTER_TP_ALCANZADO"
                 
-                # B. Trailing Stop (Protección de beneficios en vuelo)
-                elif self.max_pnl_flotante > self.trail_trigger and pnl_f < (self.max_pnl_flotante * self.trail_pct):
+                # B. Trailing Stop del Cúmulo (Protección de rachas ganadoras)
+                elif self.max_pnl_flotante > self.trail_trigger and pnl_f_cluster < (self.max_pnl_flotante * self.trail_pct):
                     lanzar_cierre = True
-                    motivo = "TRAILING_STOP_ACTIVO"
+                    motivo = "CLUSTER_TRAILING_STOP"
 
                 if lanzar_cierre:
-                    # Ordenamos al Gateway la liquidación física inmediata
+                    # Orden de liquidación física inmediata para todo el grupo
                     self.r.publish(CH_DECISION, json.dumps({
                         "action": "CLOSE_ALL", 
                         "reason": motivo
                     }))
-                    console.print(f"[bold yellow]💰 RIESGO ({motivo}):[/bold yellow] Ordenando cierre de posiciones.")
+                    console.print(f"[bold yellow]💰 SUPERVIVENCIA ({motivo}):[/bold yellow] Liquidando clúster de {len(self.ordenes_activas)} órdenes.")
                 
-                # Actualizar monitor con el flotante actual
-                self.publicar_estado(pnl_f)
+                # Notificar al monitor el flotante del clúster
+                self.publicar_estado(pnl_f_cluster)
 
-            # --- 2. SINCRONIZACIÓN DE REALIDAD (Confirmaciones del Gateway) ---
+            # --- 2. SINCRONIZACIÓN DE REALIDAD (Confirmaciones del Broker) ---
             elif canal == CH_RESULTS:
                 status = data.get('status')
                 
-                # El Gateway confirma que la orden de apertura se ejecutó en MT5
+                # Confirmación de que una nueva orden de la ráfaga entró al mercado
                 if status == 'executed':
                     self.ordenes_activas.append({
                         "tipo": data['action'], 
@@ -121,25 +121,27 @@ class HomeostasisBTC:
                         "volumen": data.get('volume', 0.01), 
                         "ticket": data.get('ticket')
                     })
-                    console.print(f"[bold green]✅ CÚMULO SYNC:[/bold green] Orden {data['action']} integrada a la memoria.")
+                    console.print(f"[bold green]✅ CÚMULO SYNC:[/bold green] Orden {len(self.ordenes_activas)} integrada al clúster.")
 
-                # El Gateway confirma que las posiciones se cerraron en MT5
+                # Confirmación de que todo el clúster fue liquidado exitosamente
                 elif status == 'closed':
                     pnl_cierre = data.get('final_pnl', 0.0)
                     self.pnl_diario_realizado += pnl_cierre
+                    
+                    # Limpieza total de la memoria operativa
                     self.ordenes_activas = []
                     self.max_pnl_flotante = 0.0
                     
-                    # Activamos periodo refractario (15 segundos de calma)
+                    # Bloqueo de refractariedad (15 segundos) para estabilizar el sistema post-cierre
                     self.r.setex(f"{CH_BLOCK}_active", 15, "true")
                     
-                    console.print(f"[bold blue]🔄 RESET HOMEOTASIS:[/bold blue] Cierre real confirmado. PnL: ${pnl_cierre:.2f}")
+                    console.print(f"[bold blue]🔄 RESET CLÚSTER:[/bold blue] Liquidación física confirmada. PnL: ${pnl_cierre:.2f}")
                 
-                # El Gateway reporta un fallo crítico en MT5 (como el error NoneType)
+                # Manejo de fallos físicos en Pepperstone (Seguridad Vision Global)
                 elif status == 'error_cierre':
-                    console.print(f"[bold red]⚠️ ALERTA:[/bold red] MT5 falló al cerrar. Manteniendo órdenes en monitor para reintento.")
+                    console.print(f"[bold red]⚠️ ALERTA CRÍTICA:[/bold red] MT5 falló al cerrar. Manteniendo clúster en memoria para reintento.")
 
-                # Forzamos actualización visual inmediata
+                # Forzar actualización visual inmediata tras cambios en el cúmulo
                 self.publicar_estado()
 
 if __name__ == "__main__":
